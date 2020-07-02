@@ -4,6 +4,15 @@ DEBUG = False
 
 DISPLAY_PRECISION = 4
 
+# NEW:
+
+INDEX_INSTITUTION = {
+	'CERN':0,
+	'FNAL':1,
+	'UCSB':2,
+	'UMN':3,
+}
+
 INDEX_SIZE = {
 	8:0,
 	"8":0,

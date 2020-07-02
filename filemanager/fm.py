@@ -88,32 +88,32 @@ class fsobj(object):
 		self.clear() # sets attributes to None
 
 	def __str__(self):
-		return "<{} {}>".format(self.OBJECTNAME, self.ID)
+		return "<{} {} {}>".format(self.OBJECTNAME, self.ID)
 
-	def get_filedir_filename(self, ID = None):
+	def get_filedir_filename(self, ID = None, institution = None):
 		if ID is None:
 			ID = self.ID
-		filedir  = os.sep.join([ DATADIR, self.FILEDIR.format(ID=ID, century = CENTURY.format(ID//100)) ])
-		filename = self.FILENAME.format(ID=ID)
+		if institution is None:
+			institution = self.institution
+		filedir  = os.sep.join([ DATADIR, self.FILEDIR.format(ID=ID, institution=institution, century = CENTURY.format(ID//100)) ])
+		filename = self.FILENAME.format(ID=ID, institution=instituion)
 		return filedir, filename
 
+"""
 	# NEW--used only for tooling parts.
 	# Will produce an error if used for other objects.
-	def get_filedir_filename_tooling(self, ID = None, location = None):
-		if self.location is None:
-			print("ERROR:  Object needs a location before it can be saved!")
-			return None, None
+	def get_filedir_filename_tooling(self, ID = None, institution = None):
 		if ID is None:
 			ID = self.ID
-		if location is None:
-			location = self.location
-		filedir  = os.sep.join([ DATADIR, self.FILEDIR.format(ID=ID, century = CENTURY.format(ID//100)) ])
-		filename = self.FILENAME.format(ID=ID, location=location)
+		if institution is None:
+			institution = self.institution
+		filedir  = os.sep.join([ DATADIR, self.FILEDIR.format(ID=ID, institution=institution, century = CENTURY.format(ID//100)) ])
+		filename = self.FILENAME.format(ID=ID, institution)
 		return filedir, filename
-
+"""
 
 	def save(self, objname = 'fsobj'):  #NOTE:  objname param is new
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		file = os.sep.join([filedir, filename])
 		if not os.path.exists(filedir):
 			os.makedirs(filedir)
@@ -126,77 +126,13 @@ class fsobj(object):
 			else:
 				json.dump(vars(self), opfl, indent=4)
 
-		"""  THIS IS OLD, IGNORE IT
-		print("Create xml file:")
-		#NOTE:  Currently testing a direct xml dump
-		root = Element('ROOT')
-		tree = ElementTree(root)
-		root.set('xmlns:xsi','http://www.w3.org/2001/XMLSchema-instance')
-		parts = Element('PARTS')
-		root.append(parts)
-		part = Element('PART')  #This tree structure is subject to change
-		part.set('mode','auto')
-		parts.append(part)
 
-		# Add part name separately, since the parent class can't access it directly
-		nameobj = Element('KIND_OF_PART')
-		# Get corrected name from dictionary
-		nameobj.text = OBJ_NAME_DICT[OBJECTNAME]
-		part.append(nameobj)
-
-		contents = vars(self)
-		if hasattr(self, 'PROPERTIES_DO_NOT_SAVE'):
-			contents = {_:contents[_] for _ in contents.keys() if _ not in self.PROPERTIES_DO_NOT_SAVE}
-		else:
-			contents = vars(self)
-		for varname, value in contents.items():
-			# Need to handle lists separately
-			# AND make sure that only lists and strs/ints are stored!
-			print("Saving", varname)
-			print("Value =", value)
-			#if isinstance(value, QtCore.QDate):
-			#	#If date:i
-			#	print("Found date")
-			#	vr = Element(varname)
-			#	vr.text = value.toString()
-			#	part.append(vr)
-			#WARNING:  Dates are currently being saved as [day, month, year] list...may need to reformat.
-			if isinstance(value, list):
-				# Load entire list into xml tree
-				# No structure for now, just make each item a separate <thingy>thing1</thingy>, etc.
-				for item in value:
-					vr = Element(varname)
-					vr.text = str(item)
-					part.append(vr)
-			else:
-				vr = Element(varname)
-				vr.text = str(value)
-				part.append(vr)
-
-		#Store in same directory as .json files, w/ same name:
-		filename = self.FILENAME.format(ID=self.ID)  #Copied from get_filedir_filename()
-		print("Saving file to ", filedir+'/'+filename.replace('.json', '.xml'))
-		tree.write(open(filedir+'/'+filename.replace('.json', '.xml'), 'wb'))
-		"""
-
-		"""
-		# TESTING:  Load XML file and try to read it
-		print("File saved.  Reading...")
-		tree = parse(filedir+'/'+filename.replace('.json', '.xml'))
-		root = tree.getroot()
-		parts = root[0][0]
-		for child in parts:
-			print(child.tag, child.text)
-		# To add to load():  Need to convert parts to fixed dictionary
-		# - Convert strings to numbers
-		# - Restore all lists PLUS dates
-		"""
-
+"""
 	# NEW:
 	def save_tooling(self):
 		#NOTE:  Tools require special treatment.
 		#       IDs are NOT unique.  ID+location is unique.  Need to use this instead to name the file.
-		filedir, filename = self.get_filedir_filename_tooling(self.ID, self.location)
+		filedir, filename = self.get_filedir_filename_tooling(self.ID, self.institution)
 		file = os.sep.join([filedir, filename])
 		if not os.path.exists(filedir):
 			os.makedirs(filedir)
@@ -208,16 +144,21 @@ class fsobj(object):
 				json.dump(filtered_contents, opfl, indent=4)
 			else:
 				json.dump(vars(self), opfl, indent=4)
+"""
 
 
-	def load(self, ID, on_property_missing = "warn"):
+	def load(self, ID, institution, on_property_missing = "warn"):
 		# NOTE:  May have to be redone for XML.
 
 		if ID == -1:
 			self.clear()
 			return False
 
-		filedir, filename = self.get_filedir_filename(ID)
+		if institution == '':
+			self.clear()
+			return False
+
+		filedir, filename = self.get_filedir_filename(ID, institution)
 		file = os.sep.join([filedir, filename])
 
 		if not os.path.exists(file):
@@ -231,10 +172,14 @@ class fsobj(object):
 		print(data)
 
 		if not (data['ID'] == ID):
-			err = "ID in data file ({}) does not match ID of filename ({})".format(data['ID'],ID)
+			err = "ID in data file ({}) does not match ID of filename ({})".format(data['ID'], ID)
+			raise ValueError(err)
+		if not (data['institution'] == ID):
+			err = "Institution in data file ({}) does not match institution of filename ({})".format(data['institution'], institution)
 			raise ValueError(err)
 
 		self.ID = ID
+		self.institution = institution
 
 		data_keys = data.keys()
 		PROPERTIES = self.PROPERTIES + self.PROPERTIES_COMMON
@@ -267,20 +212,21 @@ class fsobj(object):
 
 				else:
 					if on_property_missing == "warn":
-						print("Warning: object {} with ID {} missing property {}. Setting to {}.".format(type(self).__name__, ID, prop, prop_default))
+						print("Warning: object {} with ID {}, institution {} missing property {}. Setting to {}.".format(type(self).__name__, ID, institution, prop, prop_default))
 						setattr(self, prop, prop_default)
 					elif on_property_missing == "error":
-						err = "object {} with ID {} missing property {}".format(type(self).__name__, ID, prop)
+						err = "object {} with ID {}, institution {}, missing property {}".format(type(self).__name__, ID, institution, prop)
 						raise ValueError(err)
 					elif on_property_missing == "no_warn":
 						setattr(self, prop, prop_default)
 					else:
-						err = "object {} with ID {} missing property {}. on_property_missing is {}; should be 'warn', 'error', or 'no_warn'".format(type(self).__name__, ID, prop, on_property_missing)
+						err = "object {} with ID {}, institution {} missing property {}. on_property_missing is {}; should be 'warn', 'error', or 'no_warn'".format(type(self).__name__, ID, institution, prop, on_property_missing)
 						raise ValueError(err)
 
 		return True
 
 
+"""
 	# NEW:  Again, tools must be saved and loaded differently.
 	
 	def load_tooling(self, ID, location, on_property_missing = "warn"):
@@ -356,11 +302,12 @@ class fsobj(object):
 						raise ValueError(err)
 
 		return True
+"""
 
 
-
-	def new(self, ID):
+	def new(self, ID, institution):
 		self.ID = ID
+		self.institution = institution
 		PROPERTIES = self.PROPERTIES + self.PROPERTIES_COMMON
 		DEFAULTS = {**self.DEFAULTS_COMMON, **getattr(self, 'DEFAULTS', {})}
 		for prop in PROPERTIES:
@@ -369,6 +316,7 @@ class fsobj(object):
 
 	def clear(self):
 		self.ID = None
+		self.institution = None
 		PROPERTIES = self.PROPERTIES + self.PROPERTIES_COMMON
 		DEFAULTS   = {**self.DEFAULTS, **self.DEFAULTS_COMMON}
 		for prop in PROPERTIES:
@@ -387,57 +335,45 @@ class fsobj(object):
 class tool_sensor(fsobj):
 	OBJECTNAME = "sensor tool"
 	FILEDIR = os.sep.join(['tooling','tool_sensor'])
-	FILENAME = 'tool_sensor_{ID:0>5}.json'
-	#FILENAME = 'tool_sensor_{location}_{ID:0>5}.json'
+	FILENAME = 'tool_sensor_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'size',
-		'location',  #NEW, required for unique identifier
 	]
-
-	# NOTE:  This and below objects must be saved with save_tooling(), not save().
 
 
 class tool_pcb(fsobj):
 	OBJECTNAME = "PCB tool"
 	FILEDIR = os.sep.join(['tooling','tool_pcb'])
-	FILENAME = 'tool_pcb_{ID:0>5}.json'
-	#FILENAME = 'tool_pcb_{location}_{ID:0>5}.json'
+	FILENAME = 'tool_pcb_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'size',
-		'location',
 	]
 
 
 class tray_assembly(fsobj):
 	OBJECTNAME = "assembly tray"
 	FILEDIR = os.sep.join(['tooling','tray_assembly'])
-	FILENAME = 'tray_assembly_{ID:0>5}.json'
-	#FILENAME = 'tray_assembly_{location}_{ID:0>5}.json'
+	FILENAME = 'tray_assembly_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'size',
-		'location',
 	]
 
 
 class tray_component_sensor(fsobj):
 	OBJECTNAME = "sensor tray"
 	FILEDIR = os.sep.join(['tooling','tray_component_sensor'])
-	FILENAME = 'tray_component_sensor_{ID:0>5}.json'
-	#FILENAME = 'tray_component_sensor_{location}_{ID:0>5}.json'
+	FILENAME = 'tray_component_sensor_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'size',
-		'location',
 	]
 
 
 class tray_component_pcb(fsobj):
 	OBJECTNAME = "pcb tray"
 	FILEDIR = os.sep.join(['tooling','tray_component_pcb'])
-	FILENAME = 'tray_component_pcb_{ID:0>5}.json'
-	#FILENAME = 'tray_component_pcb_{location}_{ID:0>5}.json'
+	FILENAME = 'tray_component_pcb_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'size',
-		'location',
 	]
 
 
@@ -449,7 +385,7 @@ class tray_component_pcb(fsobj):
 class shipment(fsobj):
 	OBJECTNAME = "shipment"
 	FILEDIR = os.sep.join(['shipments'])
-	FILENAME = "shipment_{ID:0>5}.json"
+	FILENAME = "shipment_{institution}_{ID:0>5}.json"
 	PROPERTIES = [
 		"sender",
 		"receiver",
@@ -476,13 +412,13 @@ class shipment(fsobj):
 
 		if not (self.baseplates is None):
 			inst_baseplate = baseplate()
-			for ID in self.baseplates:
-				success = inst_baseplate.load(ID)
+			for ID, institution in self.baseplates:
+				success = inst_baseplate.load(ID, institution)
 				if success:
 					if inst_baseplate.shipments is None:
 						inst_baseplate.shipments = []
-					if not (self.ID in inst_baseplate.shipments):
-						inst_baseplate.shipments.append(self.ID)
+					if not ((self.ID, self.institution) in inst_baseplate.shipments):
+						inst_baseplate.shipments.append((self.ID, self.institution))
 						inst_baseplate.save()
 					inst_baseplate.clear()
 				else:
@@ -494,13 +430,13 @@ class shipment(fsobj):
 
 		if not (self.sensors is None):
 			inst_sensor = sensor()
-			for ID in self.sensors:
-				success = inst_sensor.load(ID)
+			for ID, institution in self.sensors:
+				success = inst_sensor.load(ID, institution)
 				if success:
 					if inst_sensor.shipments is None:
 						inst_sensor.shipments = []
-					if not (self.ID in inst_sensor.shipments):
-						inst_sensor.shipments.append(self.ID)
+					if not ((self.ID, self.institution) in inst_sensor.shipments):
+						inst_sensor.shipments.append((self.ID, self.institution))
 						inst_sensor.save()
 					inst_sensor.clear()
 				else:
@@ -509,13 +445,13 @@ class shipment(fsobj):
 
 		if not (self.pcbs is None):
 			inst_pcb = pcb()
-			for ID in self.pcbs:
-				success = inst_pcb.load(ID)
+			for ID, institution in self.pcbs:
+				success = inst_pcb.load(ID, institution)
 				if success:
 					if inst_pcb.shipments is None:
 						inst_pcb.shipments = []
-					if not (self.ID in inst_pcb.shipments):
-						inst_pcb.shipments.append(self.ID)
+					if not ((self.ID, self.institution) in inst_pcb.shipments):
+						inst_pcb.shipments.append((self.ID, self.institution))
 						inst_pcb.save()
 					inst_pcb.clear()
 				else:
@@ -524,13 +460,13 @@ class shipment(fsobj):
 
 		if not (self.protomodules is None):
 			inst_protomodule = protomodule()
-			for ID in self.protomodules:
-				success = inst_protomodule.load(ID)
+			for ID, institution in self.protomodules:
+				success = inst_protomodule.load(ID, institution)
 				if success:
 					if inst_protomodule.shipments is None:
 						inst_protomodule.shipments = []
-					if not (self.ID in inst_protomodule.shipments):
-						inst_protomodule.shipments.append(self.ID)
+					if not ((self.ID, self.institution) in inst_protomodule.shipments):
+						inst_protomodule.shipments.append((self.ID, self.institution))
 						inst_protomodule.save()
 					inst_protomodule.clear()
 				else:
@@ -539,13 +475,13 @@ class shipment(fsobj):
 
 		if not (self.modules is None):
 			inst_module = module()
-			for ID in self.modules:
-				success = inst_module.load(ID)
+			for ID, institution in self.modules:
+				success = inst_module.load(ID, institution)
 				if success:
 					if inst_module.shipments is None:
 						inst_module.shipments = []
-					if not (self.ID in inst_module.shipments):
-						inst_module.shipments.append(self.ID)
+					if not ((self.ID, self.institution) in inst_module.shipments):
+						inst_module.shipments.append((self.ID, self.institution))
 						inst_module.save()
 					inst_module.clear()
 				else:
@@ -562,11 +498,11 @@ class shipment(fsobj):
 class baseplate(fsobj):
 	OBJECTNAME = "baseplate"
 	FILEDIR = os.sep.join(['baseplates','{century}'])
-	FILENAME = "baseplate_{ID:0>5}.json"
+	FILENAME = "baseplate_{institution}_{ID:0>5}.json"
 	PROPERTIES = [
 		# shipments and location
-		"location",  # physical location of part
-		"shipments", # list of shipments that this part has been in
+		"location",    # physical location of part at institution
+		"shipments",   # list of shipments that this part has been in
 
 		# characteristics (defined upon reception)
 		"identifier",   # idenfitier given by manufacturer or distributor.
@@ -895,7 +831,7 @@ class baseplate(fsobj):
 class sensor(fsobj):
 	OBJECTNAME = "sensor"
 	FILEDIR = os.sep.join(['sensors','{century}'])
-	FILENAME = "sensor_{ID:0>5}.json"
+	FILENAME = "sensor_{institution}_{ID:0>5}.json"
 	PROPERTIES = [
 		# shipments and location
 		"location",  # physical location of part
@@ -1000,8 +936,8 @@ class sensor(fsobj):
 
 class pcb(fsobj):
 	OBJECTNAME = "PCB"
-	FILEDIR = os.sep.join(['pcbs','{century}','pcb_{ID:0>5}'])
-	FILENAME = "pcb_{ID:0>5}.json"
+	FILEDIR = os.sep.join(['pcbs','{century}','pcb_{institution}_{ID:0>5}'])
+	FILENAME = "pcb_{institution}_{ID:0>5}.json"
 	PROPERTIES = [
 		# shipments and location
 		"location",  # physical location of part
@@ -1043,23 +979,24 @@ class pcb(fsobj):
 	DAQ_DATADIR = 'daq'
 
 	def fetch_datasets(self):
-		if self.ID is None:
+		if self.ID is None or self.institution is None:
 			err = "no pcb loaded; cannot fetch datasets"
 			raise ValueError(err)
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		daq_datadir = os.sep.join([filedir, self.DAQ_DATADIR])
 		if os.path.exists(daq_datadir):
 			self.daq_data = [_ for _ in os.listdir(daq_datadir) if os.path.isfile(os.sep.join([daq_datadir,_]))]
 		else:
 			self.daq_data = []
 
-	def load(self,ID):
-		success = super(pcb,self).load(ID)
+	def load(self,ID,institution):
+		success = super(pcb,self).load(ID, institution)
 		if success:
 			self.fetch_datasets()
 		return success
 
 
+"""
 	def save(self):
 		root = Element('ROOT')
 		tree = ElementTree(root)
@@ -1126,15 +1063,16 @@ class pcb(fsobj):
 		print("Saving file to"+filedir+'/'+filename)
 		tree.write(open(filedir+'/'+filename, 'wb'))
 		print("Created PCB XML file")
+"""
 
 
-"""	def save(self):
+	def save(self):
 		super(pcb,self).save()
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		if not os.path.exists(os.sep.join([filedir, self.DAQ_DATADIR])):
 			os.makedirs(os.sep.join([filedir, self.DAQ_DATADIR]))
 		self.fetch_datasets()
-"""
+
 
 	def load_daq(self,which):
 		if isinstance(which, int):
@@ -1150,7 +1088,7 @@ class pcb(fsobj):
 class protomodule(fsobj):
 	OBJECTNAME = "protomodule"
 	FILEDIR = os.sep.join(['protomodules','{century}'])
-	FILENAME = 'protomodule_{ID:0>5}.json'
+	FILENAME = 'protomodule_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		# shipments and location
 		"location",  # physical location of part
@@ -1190,8 +1128,8 @@ class protomodule(fsobj):
 
 class module(fsobj):
 	OBJECTNAME = "module"
-	FILEDIR    = os.sep.join(['modules','{century}','module_{ID:0>5}'])
-	FILENAME   = 'module_{ID:0>5}.json'
+	FILEDIR    = os.sep.join(['modules','{century}','module_{institution}_{ID:0>5}'])
+	FILENAME   = 'module_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		# shipments and location
 		"location",  # physical location of part
@@ -1290,7 +1228,7 @@ class module(fsobj):
 	BD_FILENAME = 'bd {which}'
 
 	def fetch_datasets(self):
-		if self.ID is None:
+		if self.ID is None or self.institution:
 			err = "no module loaded; cannot fetch datasets"
 			raise ValueError(err)
 
@@ -1391,7 +1329,7 @@ class module(fsobj):
 
 	def save(self):
 		super(module, self).save()
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		if not os.path.exists(os.sep.join([filedir, self.IV_DATADIR, self.IV_BINS_DATADIR])):
 			os.makedirs(os.sep.join([filedir, self.IV_DATADIR, self.IV_BINS_DATADIR]))
 		if not os.path.exists(os.sep.join([filedir, self.DAQ_DATADIR])):
@@ -1401,7 +1339,7 @@ class module(fsobj):
 	def load_iv(self, which):
 		if isinstance(which, int):
 			which = self.iv_data[which]
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		file = os.sep.join([filedir, self.IV_DATADIR, which])
 		
 		if os.path.exists(file):
@@ -1421,7 +1359,7 @@ class module(fsobj):
 			err = 'must load at least one of ascending ("a") or descending ("d"), or both ("ad", default). Given {}'.format(direction)
 			raise ValueError(err)
 
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		iv_bins_datadir = os.sep.join([filedir, self.IV_DATADIR, self.IV_BINS_DATADIR])
 
 		file_a = os.sep.join([iv_bins_datadir, self.BA_FILENAME.format(which=which)])
@@ -1446,7 +1384,7 @@ class module(fsobj):
 		if isinstance(which, int):
 			which = self.daq_data[which]
 
-		filedir, filename = self.get_filedir_filename(self.ID)
+		filedir, filename = self.get_filedir_filename(self.ID, self.institution)
 		file = os.sep.join([filedir, self.DAQ_DATADIR, which])
 		print('load {}'.format(file))
 
@@ -1515,7 +1453,7 @@ class module(fsobj):
 class step_kapton(fsobj):
 	OBJECTNAME = "kapton step"
 	FILEDIR    = os.sep.join(['steps','kapton','{century}'])
-	FILENAME   = 'kapton_assembly_step_{ID:0>5}.json'
+	FILENAME   = 'kapton_assembly_step_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'user_performed', # name of user who performed step
 		'location', # institution where step was performed
@@ -1551,30 +1489,32 @@ class step_kapton(fsobj):
 		inst_baseplate = baseplate()
 
 		for i in range(6):
-			baseplate_exists = False if self.baseplates[i] is None else inst_baseplate.load(self.baseplates[i])
+			baseplate_exists = False if self.baseplates[i] is None else inst_baseplate.load(self.baseplates[i][0], self.baseplates[i][1])
 			if baseplate_exists:
 				print("Baseplate "+str(i)+" exists")
 
 				which_kapton_layer = None
 
-				if (inst_baseplate.step_kapton is None) or (inst_baseplate.step_kapton == self.ID):
+				if (inst_baseplate.step_kapton is None)
+						or (inst_baseplate.step_kapton[0] == self.ID and inst_baseplate.step_kapton[1] == self.institution):
 					which_kapton_layer = 1
 
 				else:
-					if (inst_baseplate.step_kapton_2 is None) or (inst_baseplate.step_kapton_2 == self.ID):
-						which_kapton_layer = 2
+					if (inst_baseplate.step_kapton_2 is None)
+						or (inst_baseplate.step_kapton_2[0] == self.ID and inst_baseplate.step_kapton[1] == self.institution):
+					which_kapton_layer = 2
 
 				if which_kapton_layer is None:
-					print("step_kapton cannot write ID {} to baseplate {}: already has two kapton steps")
+					print("step_kapton cannot write ID {} to baseplate {}: already has two kapton steps".format(inst_baseplate.step_kapton[0]))
 
 				else:
 					if which_kapton_layer == 1:
-						if self.ID==None:  print("self.ID is none, handed to step_kapton!")
+						if self.ID==None or self.institution==None:  print("self.ID or self.institution is none, handed to step_kapton!")
 						else:  print("self.ID is NOT None, handed to step_kapton!")
-						inst_baseplate.step_kapton = self.ID
+						inst_baseplate.step_kapton = (self.ID, self.institution)
 					elif which_kapton_layer == 2:
-						if self.ID==None:  print("self.ID is none, handed to step_kapton_2!")
-						inst_baseplate.step_kapton_2 = self.ID
+						if self.ID==None or self.institution==None:  print("self.ID or self.institution is none, handed to step_kapton_2!")
+						inst_baseplate.step_kapton_2 = (self.ID, self.institution)
 					print("**Initializing num_kaptons**")
 					num_kaptons = 0
 					if not (inst_baseplate.step_kapton   is None): num_kaptons += 1
@@ -1586,7 +1526,7 @@ class step_kapton(fsobj):
 
 			else:
 				if not (self.baseplates[i] is None):
-					print("step_kapton {} cannot write to baseplate {}: does not exist".format(self.ID, self.baseplates[i]))
+					print("step_kapton {} {} cannot write to baseplate {}: does not exist".format(self.institution, self.ID, self.baseplates[i]))
 
 
 
@@ -1594,7 +1534,7 @@ class step_kapton(fsobj):
 class step_sensor(fsobj):
 	OBJECTNAME = "sensor step"
 	FILEDIR    = os.sep.join(['steps','sensor','{century}'])
-	FILENAME   = 'sensor_assembly_step_{ID:0>5}.json'
+	FILENAME   = 'sensor_assembly_step__{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'user_performed', # name of user who performed step
 		#'date_performed', # date step was performed
@@ -1615,10 +1555,10 @@ class step_sensor(fsobj):
 		'baseplates',   # list of baseplate   IDs, ordered by assembly tray position
 		'protomodules', # list of protomodule IDs assigned to new protomodules, by assembly tray location
 
-		'tray_component_sensor', # ID of component tray used
-		'tray_assembly',         # ID of assembly  tray used
-		'batch_araldite',        # ID of araldite batch used
-		'batch_loctite',         # ID of loctite  batch used
+		'tray_component_sensor', # (ID, institution) of component tray used
+		'tray_assembly',         # (ID, ...) of assembly  tray used
+		'batch_araldite',        # etc of araldite batch used
+		'batch_loctite',         # etc of loctite  batch used
 	]
 
 
@@ -1638,8 +1578,63 @@ class step_sensor(fsobj):
 		inst_sensor      = sensor()
 		inst_protomodule = protomodule()
 
-		print("WARNING:  Not supposed to be using this yet!!")
+		#NOTE:  The below section should be deleted later
+
+		asmbl_tray = tray_assembly()
+		comp_tray  = tray_component_sensor()
+		glue_batch = batch_araldite()
+		#slvr_epxy  = batch_loctite()
+		asmbl_tray.load(self.tray_assembly)
+		comp_tray.load(self.tray_component_sensor)
+		glue_batch.load(self.batch_araldite)
+		#slvr_epxy.load(self.batch_loctite)
+		
+
+		for i in range(6):
+
+			baseplate_exists   = False if self.baseplates[i]   is None else inst_baseplate.load(  self.baseplates[i][0],   self.baseplates[i][1]  )
+			sensor_exists      = False if self.sensors[i]      is None else inst_sensor.load(     self.sensors[i][0],      self.sensors[i][0]     )
+			protomodule_exists = False if self.protomodules[i] is None else inst_protomodule.load(self.protomodules[i][0], self.protomodules[i][1])
+
+			if baseplate_exists:
+				inst_baseplate.step_sensor = (self.ID, self.institution)
+				inst_baseplate.protomodule = self.protomodules[i]
+				inst_baseplate.save()
+
+			else:
+				if not (self.baseplates[i] is None):
+					print("cannot write property to baseplate {}: does not exist".format(self.baseplates[i]))
+
+			if sensor_exists:
+				inst_sensor.step_sensor = (self.ID, self.institution)
+				inst_sensor.protomodule = self.protomodules[i]
+				inst_sensor.save()
+			else:
+				if not (self.sensors[i] is None):
+					print("cannot write property to sensor {}: does not exist".format(self.sensors[i]))
+
+			if not (self.protomodules[i] is None):
+				if not protomodule_exists:
+					inst_protomodule.new(self.protomodules[i])
+				inst_protomodule.num_kaptons = inst_baseplate.num_kaptons if baseplate_exists else None
+				inst_protomodule.channels    = inst_sensor.channels       if sensor_exists    else None
+				inst_protomodule.size        = inst_baseplate.size        if baseplate_exists else None
+				inst_protomodule.shape       = inst_baseplate.shape       if baseplate_exists else None
+				inst_protomodule.chirality   = inst_baseplate.chirality   if baseplate_exists else None
+				inst_protomodule.rotation    = inst_baseplate.rotation    if baseplate_exists else None
+				inst_protomodule.location    = MAC
+				inst_protomodule.step_sensor = (self.ID, self.institution)
+				inst_protomodule.baseplate   = self.baseplates[i]
+				inst_protomodule.sensor      = self.sensors[i]
+				inst_protomodule.save()
+
+				if not all([baseplate_exists,sensor_exists]):
+					print("WARNING: trying to save step_sensor {}. Some parts do not exist. Could not create all associations.")
+					print("baseplate:{} sensor:{}".format(inst_baseplate.ID,inst_sensor.ID))
 		"""
+
+		# NOTE WARNING WARNING:  Must edit the below code @ ID->ID+institutiton
+
 		# Update corresponding baseplates, sensors, etc.
 		# ADDED:  Also save BuildProtoModules, BuldProtoModules_Cond XML files.
 		root = Element('ROOT')
@@ -1787,13 +1782,13 @@ class step_sensor(fsobj):
 								'COMP_TRAY_NAME':'{}_COMP_TRAY_{}'.format(comp_tray.location, comp_tray.ID),
 								'SNSR_SER_NUM':'NCU {}'.format(self.sensors[i].ID),
 								'SNSR_CMP_ROW':part_row, 'SNSR_CMP_COL':part_col,   #Should == PLT_ASM_ROW, etc above
-								"""
+								
 								# NOTE:  I assume these are measured during the placement step, not taken from view_sensor.ui.  Need to check.
 								'SNSR_X_OFFST':, 'SNSR_Y_OFFSET':, 'SNSR_ANG_OFFSET':,
 								'SNSR_TOOL_NAME':'{}_PCKUP_TOOL_{}'.format(snsr_tool.location, snsr_tool.ID),
 								# NOTE:  I don't know what these are, TEMPORARILY commented
 								'SNSR_TOOL_HT_SET':, 'SNSR_TOOL_HT_CHK':,
-								"""
+								
 								# Need to test QDate.year--should work if type(date_received)==QDate
 								'GLUE_TYPE':'Araldite {}'.format(glue_batch.date_received.year()), 'GLUE_BATCH_NUM':self.batch_araldite.ID,
 								'SLVR_EPXY_TYPE':'Loctite Ablestik', 'SLVR_EXPY_BATCH_NUM':self.batch_loctite.ID,
@@ -1879,7 +1874,7 @@ class step_sensor(fsobj):
 class step_pcb(fsobj):
 	OBJECTNAME = "PCB step"
 	FILEDIR = os.sep.join(['steps','pcb','{century}'])
-	FILENAME = 'pcb_assembly_step_{ID:0>5}.json'
+	FILENAME = 'pcb_assembly_step_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'user_performed', # name of user who performed step
 		#'date_performed', # date step was performed
@@ -1922,17 +1917,17 @@ class step_pcb(fsobj):
 
 		for i in range(6):
 
-			pcb_exists         = False if (self.pcbs[i]         is None) else inst_pcb.load(         self.pcbs[i]         )
-			protomodule_exists = False if (self.protomodules[i] is None) else inst_protomodule.load( self.protomodules[i] )
-			module_exists      = False if (self.modules[i]      is None) else inst_module.load(      self.modules[i]      )
+			pcb_exists         = False if (self.pcbs[i]         is None) else inst_pcb.load(         self.pcbs[i][0],         self.pcbs[i][1]        )
+			protomodule_exists = False if (self.protomodules[i] is None) else inst_protomodule.load( self.protomodules[i][0], self.protomodules[i][1])
+			module_exists      = False if (self.modules[i]      is None) else inst_module.load(      self.modules[i][0],      self.modules[i][1]     )
 
 			if pcb_exists:
-				inst_pcb.step_pcb = self.ID
+				inst_pcb.step_pcb = (self.ID, self.institution)
 				inst_pcb.module = self.modules[i]
 				inst_pcb.save()
 
 			if protomodule_exists:
-				inst_protomodule.step_pcb = self.ID
+				inst_protomodule.step_pcb = (self.ID, self.institution)
 				inst_protomodule.module = self.modules[i]
 				inst_protomodule.save()
 
@@ -1952,15 +1947,15 @@ class step_pcb(fsobj):
 
 			if not (self.modules[i] is None):
 				if not module_exists:
-					inst_module.new(self.modules[i])
-				inst_module.baseplate   = inst_baseplate.ID   if baseplate_exists   else None
-				inst_module.sensor      = inst_sensor.ID      if sensor_exists      else None
-				inst_module.pcb         = inst_pcb.ID         if pcb_exists         else None
-				inst_module.protomodule = inst_protomodule.ID if protomodule_exists else None
+					inst_module.new(self.modules[i][0], self.modules[i][1])
+				inst_module.baseplate   = (inst_baseplate.ID,   inst_baseplate.institution)   if baseplate_exists   else None
+				inst_module.sensor      = (inst_sensor.ID,      inst_sensor.institution)      if sensor_exists      else None
+				inst_module.pcb         = (inst_pcb.ID,         inst_pcb.institution)         if pcb_exists         else None
+				inst_module.protomodule = (inst_protomodule.ID, inst_protomodule.institution) if protomodule_exists else None
 				inst_module.step_kapton   = inst_baseplate.step_kapton   if baseplate_exists   else None
 				inst_module.step_kapton_2 = inst_baseplate.step_kapton_2 if baseplate_exists   else None
 				inst_module.step_sensor = inst_protomodule.step_sensor if protomodule_exists else None
-				inst_module.step_pcb    = self.ID
+				inst_module.step_pcb    = (self.ID, self.institution)
 				inst_module.num_kaptons = inst_baseplate.num_kaptons if baseplate_exists else None
 				inst_module.channels    = inst_sensor.channels       if sensor_exists    else None
 				inst_module.size        = inst_pcb.size              if pcb_exists       else None
@@ -1984,7 +1979,7 @@ class step_pcb(fsobj):
 class batch_araldite(fsobj):
 	OBJECTNAME = "araldite batch"
 	FILEDIR = os.sep.join(['supplies','batch_araldite','{century}'])
-	FILENAME = 'batch_araldite_{ID:0>5}.json'
+	FILENAME = 'batch_araldite_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'date_received',
 		'date_expires',
@@ -1994,7 +1989,7 @@ class batch_araldite(fsobj):
 class batch_loctite(fsobj):
 	OBJECTNAME = "loctite batch"
 	FILEDIR = os.sep.join(['supplies','batch_loctite','{century}'])
-	FILENAME = 'batch_loctite_{ID:0>5}.json'
+	FILENAME = 'batch_loctite_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'date_received',
 		'date_expires',
@@ -2004,7 +1999,7 @@ class batch_loctite(fsobj):
 class batch_sylgard_thick(fsobj):
 	OBJECTNAME = "sylgard (thick) batch"
 	FILEDIR = os.sep.join(['supplies','batch_sylgard_thick','{century}'])
-	FILENAME = 'batch_sylgard_thick_{ID:0>5}.json'
+	FILENAME = 'batch_sylgard_thick_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'date_received',
 		'date_expires',
@@ -2014,7 +2009,7 @@ class batch_sylgard_thick(fsobj):
 class batch_sylgard_thin(fsobj):
 	OBJECTNAME = "sylgard (thin) batch"
 	FILEDIR = os.sep.join(['supplies','batch_sylgard_thin','{century}'])
-	FILENAME = 'batch_sylgard_thin_{ID:0>5}.json'
+	FILENAME = 'batch_sylgard_thin_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'date_received',
 		'date_expires',
@@ -2024,7 +2019,7 @@ class batch_sylgard_thin(fsobj):
 class batch_bond_wire(fsobj):
 	OBJECTNAME = "bond wire batch"
 	FILEDIR = os.sep.join(['supplies','batch_bond_wire','{century}'])
-	FILENAME = 'batch_bond_wire_{ID:0>5}.json'
+	FILENAME = 'batch_bond_wire_{institution}_{ID:0>5}.json'
 	PROPERTIES = [
 		'date_received',
 		'date_expires',

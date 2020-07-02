@@ -2,6 +2,14 @@ PAGE_NAME = "view_protomodule"
 OBJECTTYPE = "protomodule"
 DEBUG = False
 
+# NEW:
+INDEX_INSTITUTION = {
+	'CERN':0,
+	'FNAL':1,
+	'UCSB':2,
+	'UMN':3,
+}
+
 INDEX_SIZE = {
 	8:0,
 	"8":0,
