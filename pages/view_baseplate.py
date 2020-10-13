@@ -15,6 +15,8 @@ INDEX_MATERIAL = {
 	'Cu':0,
 	'CuW':1,
 	'PCB':2,
+        'Acrylic':3,
+        'Al':4,
 }
 
 INDEX_SHAPE = {

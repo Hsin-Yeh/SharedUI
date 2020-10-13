@@ -655,6 +655,16 @@
       <string>PCB</string>
      </property>
     </item>
+    <item>
+     <property name="text">
+      <string>Acrylic</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>Al</string>
+     </property>
+    </item>
    </widget>
    <zorder>lineEdit_4</zorder>
    <zorder>lineEdit_11</zorder>
